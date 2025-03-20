@@ -311,3 +311,85 @@ kubectl get nodes
 ```
 
 Your Kubernetes cluster is now fully set up using **Multipass on macOS**!
+
+---
+
+# **Backing Up the Cluster Before Deletion**
+
+If you need to back up the cluster state before deleting it, follow these steps.
+
+### **1. Save all Kubernetes objects**
+Run this on your local machine (Mac):
+```bash
+kubectl get all --all-namespaces -o yaml > ~/multipass-backup/cluster-backup.yaml
+```
+
+### **2. Save the etcd database snapshot**
+Run this inside `kube-master`:
+```bash
+ETCDCTL_API=3 etcdctl snapshot save /home/ubuntu/etcd-backup.db \
+  --endpoints=https://127.0.0.1:2379 \
+  --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+  --cert=/etc/kubernetes/pki/etcd/server.crt \
+  --key=/etc/kubernetes/pki/etcd/server.key
+```
+
+### **3. Backup Kubernetes configs**
+Inside `kube-master`, create a compressed backup:
+```bash
+tar -czvf /home/ubuntu/multipass-backup.tar.gz ~/.kube/ /etc/kubernetes/
+```
+
+### **4. Transfer backups to the Mac**
+Exit `kube-master` and transfer the files:
+```bash
+multipass transfer kube-master:/home/ubuntu/cluster-backup.yaml ~/multipass-backup/
+multipass transfer kube-master:/home/ubuntu/etcd-backup.db ~/multipass-backup/
+multipass transfer kube-master:/home/ubuntu/multipass-backup.tar.gz ~/multipass-backup/
+```
+
+### **5. Extract the Kubernetes configs**
+Run on your Mac:
+```bash
+tar -xzvf ~/multipass-backup/multipass-backup.tar.gz -C ~/multipass-backup/
+```
+
+### **6. Confirm backups exist**
+Check that all files are present:
+```bash
+ls -lh ~/multipass-backup/
+```
+
+Expected output:
+```
+-rw-r--r--   76K  cluster-backup.yaml
+-rw-------   2.0M etcd-backup.db
+drwxr-xr-x     -  multipass-backup/
+-rw-r--r--  244K  multipass-backup.tar.gz
+```
+
+To verify the etcd backup:
+```bash
+ETCDCTL_API=3 etcdctl snapshot status ~/multipass-backup/etcd-backup.db
+```
+
+---
+
+# **Deleting the Cluster**
+Once all backups are confirmed, you can delete the Multipass instances:
+```bash
+multipass delete --all
+multipass purge
+```
+
+Check that all instances are removed:
+```bash
+multipass list
+```
+
+Expected output:
+```
+No instances found.
+```
+
+This completes the backup and cleanup process.
